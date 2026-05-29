@@ -332,6 +332,29 @@ if uploaded:
                     "Surplus":[surplus_cu,surplus_fe,surplus_al,surplus_au]
                 }))
 
+                
+                st.subheader("V1.6 Optimization Dashboard")
+
+                ranking_df = pd.DataFrame([
+                    ["Cu", req_cu],
+                    ["Fe", req_fe],
+                    ["Al", req_al],
+                    ["Au", req_au]
+                ], columns=["Metal","Required Qty MT"]).sort_values(
+                    "Required Qty MT", ascending=False
+                )
+
+                st.dataframe(ranking_df, use_container_width=True)
+
+                next_qty = ranking_df.iloc[1]["Required Qty MT"] if len(ranking_df) > 1 else 0
+                gap_pct = ((binding_qty-next_qty)/next_qty*100) if next_qty else 0
+
+                st.write({
+                    "Binding Metal": binding_metal,
+                    "Binding Advantage %": round(gap_pct,2)
+                })
+
+
                 st.write({
                     "Brand Revenue ₹": round(brand_revenue,2),
                     "Surplus Revenue ₹": round(surplus_revenue,2),
