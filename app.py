@@ -233,11 +233,6 @@ if uploaded:
             value=150000.0
         )
 
-        recycler_cost = st.number_input(
-            "Recycler Processing Cost (₹/kg)",
-            min_value=0.0,
-            value=25.0
-        )
 
         extraction = pd.read_excel(
             "EPR_Master_Data.xlsx",
@@ -259,10 +254,15 @@ if uploaded:
 
             split_df = pd.DataFrame({
                 "Category": selected_categories,
-                "Split %": [0.0]*len(selected_categories)
+                "Split %": [0.0]*len(selected_categories),
+                "Recycler Cost ₹/kg": [25.0]*len(selected_categories)
             })
 
-            split_df = st.data_editor(split_df, use_container_width=True)
+            split_df = st.data_editor(
+                split_df,
+                use_container_width=True,
+                key="recycler_mix_costs"
+            )
 
             if round(float(split_df["Split %"].sum()),2) == 100:
 
@@ -281,10 +281,15 @@ if uploaded:
                     ]
 
                     if len(m):
-                        wcu += wt*float(m.iloc[0]["Cu (%)"] or 0)
-                        wfe += wt*float(m.iloc[0]["Fe (%)"] or 0)
-                        wal += wt*float(m.iloc[0]["Al (%)"] or 0)
-                        wau += wt*float(m.iloc[0]["Au (%)"] or 0)
+                        cu_pct = pd.to_numeric(m.iloc[0]["Cu (%)"], errors="coerce")
+                        fe_pct = pd.to_numeric(m.iloc[0]["Fe (%)"], errors="coerce")
+                        al_pct = pd.to_numeric(m.iloc[0]["Al (%)"], errors="coerce")
+                        au_pct = pd.to_numeric(m.iloc[0]["Au (%)"], errors="coerce")
+
+                        wcu += wt * (0 if pd.isna(cu_pct) else cu_pct)
+                        wfe += wt * (0 if pd.isna(fe_pct) else fe_pct)
+                        wal += wt * (0 if pd.isna(al_pct) else al_pct)
+                        wau += wt * (0 if pd.isna(au_pct) else au_pct)
 
                 req_cu = total_cu/wcu if wcu else 0
                 req_fe = total_fe/wfe if wfe else 0
@@ -292,10 +297,10 @@ if uploaded:
                 req_au = total_au/(wau*1000) if wau else 0
 
                 vals = {
-                    "Cu": req_cu,
-                    "Fe": req_fe,
-                    "Al": req_al,
-                    "Au": req_au
+                    "Cu": 0 if pd.isna(req_cu) else req_cu,
+                    "Fe": 0 if pd.isna(req_fe) else req_fe,
+                    "Al": 0 if pd.isna(req_al) else req_al,
+                    "Au": 0 if pd.isna(req_au) else req_au
                 }
 
                 binding_metal = max(vals, key=vals.get)
@@ -318,7 +323,7 @@ if uploaded:
                     surplus_au*772
                 )
 
-                recycler_cost_total = binding_qty*1000*recycler_cost
+                # calculated from category-wise recycler costs
 
                 st.dataframe(proposal_df, use_container_width=True)
 
@@ -337,6 +342,21 @@ if uploaded:
                     binding_qty *
                     allocation_df["Split %"] / 100
                 )
+
+                allocation_df["Recycler Cost ₹"] = (
+                    allocation_df["Required Collection MT"] *
+                    1000 *
+                    allocation_df["Recycler Cost ₹/kg"]
+                )
+
+                recycler_cost_total = allocation_df["Recycler Cost ₹"].sum()
+
+                st.subheader("Weighted Metal Extraction")
+
+                st.dataframe(pd.DataFrame({
+                    "Metal":["Cu","Fe","Al","Au"],
+                    "Weighted Extraction %":[wcu,wfe,wal,wau]
+                }), use_container_width=True)
 
                 st.subheader("Recycler Collection Requirement")
 
