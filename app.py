@@ -258,6 +258,14 @@ if uploaded:
 
             split_df = st.data_editor(split_df, use_container_width=True)
 
+            split_df["Recycler Cost ₹/kg"] = 25.0
+
+            split_df = st.data_editor(
+                split_df,
+                use_container_width=True,
+                key="recycler_cost_matrix"
+            )
+
             if round(float(split_df["Split %"].sum()),2) == 100:
 
                 total_cu = float(out["Cu MT"].sum())
@@ -312,7 +320,7 @@ if uploaded:
                     surplus_au*772
                 )
 
-                recycler_cost_total = binding_qty*1000*recycler_cost
+                recycler_cost_total = ((allocation_df["Required Collection MT"]*1000*allocation_df["Recycler Cost ₹/kg"]).sum()) if "allocation_df" in locals() else 0
 
                 st.dataframe(proposal_df, use_container_width=True)
 
