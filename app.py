@@ -227,11 +227,6 @@ if uploaded:
 
         brand_revenue = proposal_df["Brand Revenue ₹"].sum()
 
-        recycler_cost = st.number_input(
-            "Recycler Processing Cost (₹/kg)",
-            min_value=0.0,
-            value=25.0
-        )
 
         extraction = pd.read_excel(
             "EPR_Master_Data.xlsx",
@@ -256,14 +251,12 @@ if uploaded:
                 "Split %": [0.0]*len(selected_categories)
             })
 
-            split_df = st.data_editor(split_df, use_container_width=True)
-
             split_df["Recycler Cost ₹/kg"] = 25.0
 
             split_df = st.data_editor(
                 split_df,
                 use_container_width=True,
-                key="recycler_cost_matrix"
+                key="recycler_mix_costs"
             )
 
             if round(float(split_df["Split %"].sum()),2) == 100:
@@ -320,7 +313,7 @@ if uploaded:
                     surplus_au*772
                 )
 
-                recycler_cost_total = ((allocation_df["Required Collection MT"]*1000*allocation_df["Recycler Cost ₹/kg"]).sum()) if "allocation_df" in locals() else 0
+                # recycler_cost_total calculated from category-wise cost matrix
 
                 st.dataframe(proposal_df, use_container_width=True)
 
@@ -339,6 +332,14 @@ if uploaded:
                     binding_qty *
                     allocation_df["Split %"] / 100
                 )
+
+                allocation_df["Recycler Cost ₹"] = (
+                    allocation_df["Required Collection MT"]
+                    * 1000
+                    * allocation_df["Recycler Cost ₹/kg"]
+                )
+
+                recycler_cost_total = allocation_df["Recycler Cost ₹"].sum()
 
                 st.subheader("Recycler Collection Requirement")
 
