@@ -2,9 +2,9 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="EPR Commercial Engine V1.1", layout="wide")
+st.set_page_config(page_title="EPR Commercial Engine V1.2", layout="wide")
 
-tab1, tab2 = st.tabs(["Targets & Metal Liability", "Pricing"])
+tab1, tab2 = st.tabs(["Targets & Metal Liability", "Pricing + Gold Fulfilment"])
 
 SCHEDULE_III = {
     "2023-24": 0.60, "2024-25": 0.60,
@@ -27,7 +27,11 @@ gold_obligation = {
 }
 
 fy = st.sidebar.selectbox("Compliance Year", list(SCHEDULE_III.keys()))
+gold_fulfilment_pct = st.sidebar.slider("Gold Fulfilment %", 0, 100, 100, 5)
 uploaded = st.sidebar.file_uploader("Upload Sales Data", type=["xlsx"])
+
+gold_factor = gold_fulfilment_pct / 100
+shortfall = 1 - gold_factor
 
 def build_output():
     sales = pd.read_excel(uploaded)
@@ -68,9 +72,7 @@ def build_output():
         sales_value = float(row.get(ref_year,0) or 0)
         target_mt = sales_value * pct
 
-        match = extraction[
-            extraction["Helper Column"].astype(str).str.strip() == category
-        ]
+        match = extraction[extraction["Helper Column"].astype(str).str.strip()==category]
 
         au=cu=fe=al=0.0
         if len(match):
@@ -97,7 +99,6 @@ def build_output():
 if uploaded:
     out = build_output()
 
-    # FIX 1
     for c in ["Cu MT","Fe MT","Al MT","Au KG"]:
         out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0)
 
@@ -106,8 +107,6 @@ if uploaded:
         st.dataframe(out, use_container_width=True)
 
     with tab2:
-        st.subheader("Pricing")
-
         category_rates = {
             "ITEW": (34,112),
             "CEEW": (22,74),
@@ -136,44 +135,39 @@ if uploaded:
 
             target_kg=float(r["Target MT"])*1000
 
-            cat_min_val=target_kg*cmin
-            cat_max_val=target_kg*cmax
+            adj_cu = float(r["Cu MT"]) * (1 + shortfall)
+            adj_al = float(r["Al MT"]) * (1 + shortfall)
+            adj_fe = float(r["Fe MT"])
+            adj_au = float(r["Au KG"]) * gold_factor
 
-            metal_min_val=(float(r["Cu MT"])*1000*METAL_MIN["Cu"]) + \
-                          (float(r["Fe MT"])*1000*METAL_MIN["Fe"]) + \
-                          (float(r["Al MT"])*1000*METAL_MIN["Al"]) + \
-                          (float(r["Au KG"])*1000*METAL_MIN["Au"])
+            metal_min_original=(float(r["Cu MT"])*1000*562)+(float(r["Fe MT"])*1000*30)+(float(r["Al MT"])*1000*136)+(float(r["Au KG"])*1000*772)
+            metal_max_original=(float(r["Cu MT"])*1000*1875)+(float(r["Fe MT"])*1000*101)+(float(r["Al MT"])*1000*456)+(float(r["Au KG"])*1000*2575)
 
-            metal_max_val=(float(r["Cu MT"])*1000*METAL_MAX["Cu"]) + \
-                          (float(r["Fe MT"])*1000*METAL_MAX["Fe"]) + \
-                          (float(r["Al MT"])*1000*METAL_MAX["Al"]) + \
-                          (float(r["Au KG"])*1000*METAL_MAX["Au"])
-
-            metal_min_rate = round(metal_min_val/target_kg,2) if target_kg else 0
-            metal_max_rate = round(metal_max_val/target_kg,2) if target_kg else 0
+            metal_min_adjusted=(adj_cu*1000*562)+(adj_fe*1000*30)+(adj_al*1000*136)+(adj_au*1000*772)
+            metal_max_adjusted=(adj_cu*1000*1875)+(adj_fe*1000*101)+(adj_al*1000*456)+(adj_au*1000*2575)
 
             pricing_rows.append({
                 "EEE Category":cat,
+                "Gold Fulfilment %":gold_fulfilment_pct,
+                "Gold Shortfall %":round(shortfall*100,0),
+                "Adjusted Cu MT":round(adj_cu,4),
+                "Adjusted Al MT":round(adj_al,4),
+                "Adjusted Au KG":round(adj_au,4),
                 "Cat Min ₹/kg":cmin,
                 "Cat Max ₹/kg":cmax,
-                "Metal Min ₹/kg":metal_min_rate,
-                "Metal Max ₹/kg":metal_max_rate,
-                "Preferred Min Basis":"Category" if cmin < metal_min_rate else "Metal",
-                "Preferred Max Basis":"Category" if cmax < metal_max_rate else "Metal",
-                "Category Min ₹":round(cat_min_val,2),
-                "Category Max ₹":round(cat_max_val,2),
-                "Metal Min ₹":round(metal_min_val,2),
-                "Metal Max ₹":round(metal_max_val,2)
+                "Metal Min ₹ Original":round(metal_min_original,2),
+                "Metal Min ₹ Adjusted":round(metal_min_adjusted,2),
+                "Metal Max ₹ Original":round(metal_max_original,2),
+                "Metal Max ₹ Adjusted":round(metal_max_adjusted,2)
             })
 
         price_df = pd.DataFrame(pricing_rows)
-
         st.dataframe(price_df, use_container_width=True)
 
-        st.subheader("Totals")
+        st.subheader("Adjusted Totals")
         st.write({
-            "Category Min Total": round(price_df["Category Min ₹"].sum(),2),
-            "Category Max Total": round(price_df["Category Max ₹"].sum(),2),
-            "Metal Min Total": round(price_df["Metal Min ₹"].sum(),2),
-            "Metal Max Total": round(price_df["Metal Max ₹"].sum(),2)
+            "Metal Min Total Original": round(price_df["Metal Min ₹ Original"].sum(),2),
+            "Metal Min Total Adjusted": round(price_df["Metal Min ₹ Adjusted"].sum(),2),
+            "Metal Max Total Original": round(price_df["Metal Max ₹ Original"].sum(),2),
+            "Metal Max Total Adjusted": round(price_df["Metal Max ₹ Adjusted"].sum(),2),
         })
