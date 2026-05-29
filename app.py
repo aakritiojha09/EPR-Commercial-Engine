@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="EPR Commercial Engine V1.2.1", layout="wide")
 
-tab1, tab2 = st.tabs(["Targets & Metal Liability", "Pricing + Gold Fulfilment"])
+tab1, tab2, tab3 = st.tabs(["Targets & Metal Liability", "Pricing + Gold Fulfilment", "Recycler Fungibility"])
 
 SCHEDULE_III = {
     "2023-24": 0.60, "2024-25": 0.60,
@@ -187,3 +187,78 @@ if uploaded:
             "Metal Max Total Original": round(price_df["Metal Max ₹ Original"].sum(),2),
             "Metal Max Total Adjusted": round(price_df["Metal Max ₹ Adjusted"].sum(),2)
         })
+
+
+    with tab3:
+
+        st.subheader("Recycler Fungibility Engine")
+
+        proposal_rate = st.number_input(
+            "Brand Proposal Rate (₹/kg)",
+            min_value=0.0,
+            value=100.0
+        )
+
+        recycler_cost = st.number_input(
+            "Recycler Processing Cost (₹/kg)",
+            min_value=0.0,
+            value=25.0
+        )
+
+        extraction = pd.read_excel(
+            "EPR_Master_Data.xlsx",
+            sheet_name=2,
+            header=1
+        )
+
+        extraction.columns = extraction.columns.str.strip()
+
+        category_options = sorted(
+            extraction["Helper Column"].dropna().astype(str).unique().tolist()
+        )
+
+        selected_categories = st.multiselect(
+            "Select Recycling Categories",
+            category_options
+        )
+
+        if selected_categories:
+
+            split_df = pd.DataFrame({
+                "Category": selected_categories,
+                "Split %": [0.0] * len(selected_categories)
+            })
+
+            split_df = st.data_editor(split_df, use_container_width=True)
+
+            total_split = float(split_df["Split %"].sum())
+
+            st.write(f"Total Split = {round(total_split,2)}%")
+
+            if round(total_split,2) != 100:
+                st.error("Total Split must equal 100%")
+            else:
+
+                total_target_mt = float(out["Target MT"].sum())
+
+                allocation = split_df.copy()
+                allocation["Allocated Qty MT"] = (
+                    allocation["Split %"] / 100 * total_target_mt
+                )
+
+                st.subheader("Category Allocation")
+                st.dataframe(allocation, use_container_width=True)
+
+                brand_revenue = total_target_mt * 1000 * proposal_rate
+                recycler_cost_total = total_target_mt * 1000 * recycler_cost
+
+                st.subheader("Commercial Summary")
+
+                st.write({
+                    "Target MT": round(total_target_mt,2),
+                    "Brand Revenue": round(brand_revenue,2),
+                    "Recycler Cost": round(recycler_cost_total,2),
+                    "Gross Margin": round(
+                        brand_revenue - recycler_cost_total,2
+                    )
+                })
