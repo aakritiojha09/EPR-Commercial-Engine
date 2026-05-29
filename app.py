@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="EPR Commercial Engine V1.2", layout="wide")
+st.set_page_config(page_title="EPR Commercial Engine V1.2.1", layout="wide")
 
 tab1, tab2 = st.tabs(["Targets & Metal Liability", "Pricing + Gold Fulfilment"])
 
@@ -39,6 +39,7 @@ def build_output():
     extraction.columns = extraction.columns.str.strip()
 
     rows = []
+
     for _, row in sales.iterrows():
         category = str(row.get("EEE Category","")).strip()
 
@@ -72,7 +73,9 @@ def build_output():
         sales_value = float(row.get(ref_year,0) or 0)
         target_mt = sales_value * pct
 
-        match = extraction[extraction["Helper Column"].astype(str).str.strip()==category]
+        match = extraction[
+            extraction["Helper Column"].astype(str).str.strip() == category
+        ]
 
         au=cu=fe=al=0.0
         if len(match):
@@ -97,6 +100,7 @@ def build_output():
     return pd.DataFrame(rows)
 
 if uploaded:
+
     out = build_output()
 
     for c in ["Cu MT","Fe MT","Al MT","Au KG"]:
@@ -107,6 +111,7 @@ if uploaded:
         st.dataframe(out, use_container_width=True)
 
     with tab2:
+
         category_rates = {
             "ITEW": (34,112),
             "CEEW": (22,74),
@@ -123,6 +128,7 @@ if uploaded:
         pricing_rows=[]
 
         for _,r in out.iterrows():
+
             cat=r["EEE Category"]
 
             prefix=''
@@ -135,10 +141,16 @@ if uploaded:
 
             target_kg=float(r["Target MT"])*1000
 
-            adj_cu = float(r["Cu MT"]) * (1 + shortfall)
-            adj_al = float(r["Al MT"]) * (1 + shortfall)
+            if float(r["Au KG"]) > 0:
+                adj_cu = float(r["Cu MT"]) * (1 + shortfall)
+                adj_al = float(r["Al MT"]) * (1 + shortfall)
+                adj_au = float(r["Au KG"]) * gold_factor
+            else:
+                adj_cu = float(r["Cu MT"])
+                adj_al = float(r["Al MT"])
+                adj_au = float(r["Au KG"])
+
             adj_fe = float(r["Fe MT"])
-            adj_au = float(r["Au KG"]) * gold_factor
 
             metal_min_original=(float(r["Cu MT"])*1000*562)+(float(r["Fe MT"])*1000*30)+(float(r["Al MT"])*1000*136)+(float(r["Au KG"])*1000*772)
             metal_max_original=(float(r["Cu MT"])*1000*1875)+(float(r["Fe MT"])*1000*101)+(float(r["Al MT"])*1000*456)+(float(r["Au KG"])*1000*2575)
@@ -150,11 +162,13 @@ if uploaded:
                 "EEE Category":cat,
                 "Gold Fulfilment %":gold_fulfilment_pct,
                 "Gold Shortfall %":round(shortfall*100,0),
+                "Metal Min ₹/kg Original": round(metal_min_original/target_kg,2) if target_kg else 0,
+                "Metal Max ₹/kg Original": round(metal_max_original/target_kg,2) if target_kg else 0,
+                "Metal Min ₹/kg Adjusted": round(metal_min_adjusted/target_kg,2) if target_kg else 0,
+                "Metal Max ₹/kg Adjusted": round(metal_max_adjusted/target_kg,2) if target_kg else 0,
                 "Adjusted Cu MT":round(adj_cu,4),
                 "Adjusted Al MT":round(adj_al,4),
                 "Adjusted Au KG":round(adj_au,4),
-                "Cat Min ₹/kg":cmin,
-                "Cat Max ₹/kg":cmax,
                 "Metal Min ₹ Original":round(metal_min_original,2),
                 "Metal Min ₹ Adjusted":round(metal_min_adjusted,2),
                 "Metal Max ₹ Original":round(metal_max_original,2),
@@ -162,12 +176,14 @@ if uploaded:
             })
 
         price_df = pd.DataFrame(pricing_rows)
+
         st.dataframe(price_df, use_container_width=True)
 
-        st.subheader("Adjusted Totals")
+        st.subheader("Totals")
+
         st.write({
             "Metal Min Total Original": round(price_df["Metal Min ₹ Original"].sum(),2),
             "Metal Min Total Adjusted": round(price_df["Metal Min ₹ Adjusted"].sum(),2),
             "Metal Max Total Original": round(price_df["Metal Max ₹ Original"].sum(),2),
-            "Metal Max Total Adjusted": round(price_df["Metal Max ₹ Adjusted"].sum(),2),
+            "Metal Max Total Adjusted": round(price_df["Metal Max ₹ Adjusted"].sum(),2)
         })
