@@ -108,7 +108,17 @@ if uploaded:
 
     with tab1:
         st.subheader("Targets & Metal Liability")
-        st.dataframe(out, use_container_width=True)
+        tab1_df = out.copy()
+        total_row = {
+            "EEE Category":"TOTAL",
+            "Target MT": tab1_df["Target MT"].sum(),
+            "Cu MT": tab1_df["Cu MT"].sum(),
+            "Fe MT": tab1_df["Fe MT"].sum(),
+            "Al MT": tab1_df["Al MT"].sum(),
+            "Au KG": tab1_df["Au KG"].sum()
+        }
+        tab1_df = pd.concat([tab1_df,pd.DataFrame([total_row])],ignore_index=True)
+        st.dataframe(tab1_df, use_container_width=True)
 
     with tab2:
 
@@ -182,28 +192,58 @@ if uploaded:
                 "Adjusted Fe MT":round(adj_fe,4),
                 "Adjusted Al MT":round(adj_al,4),
                 "Adjusted Au KG":round(adj_au,4),
-                "Metal Min ₹ Original":round(metal_min_original,2),
-                "Metal Min ₹ Adjusted":round(metal_min_adjusted,2),
-                "Metal Max ₹ Original":round(metal_max_original,2),
+                "Cost at Metal Min Original":round(metal_min_original,2),
+                "Cost at Metal Min Adjusted":round(metal_min_adjusted,2),
+                "Cost at Metal Max Original":round(metal_max_original,2),
                 "Category Min ₹/kg": cmin,
                 "Category Max ₹/kg": cmax,
-                "Category Min Total ₹": round(target_kg*cmin,2),
-                "Category Max Total ₹": round(target_kg*cmax,2),
-                "Metal Max ₹ Adjusted":round(metal_max_adjusted,2)
+                "Cost at Category Min": round(target_kg*cmin,2),
+                "Cost at Category Max": round(target_kg*cmax,2),
+                "Cost at Metal Max Adjusted":round(metal_max_adjusted,2)
             })
 
+        
         price_df = pd.DataFrame(pricing_rows)
+
+        price_df["Gold Fulfilment %"] = price_df["Original Au KG"].apply(
+            lambda x: gold_fulfilment_pct if x > 0 else "NA"
+        )
+        price_df["Gold Shortfall %"] = price_df["Original Au KG"].apply(
+            lambda x: round(shortfall*100,0) if x > 0 else "NA"
+        )
+
+        ordered_cols = [
+            "EEE Category","Gold Fulfilment %","Gold Shortfall %",
+            "Original Cu MT","Original Fe MT","Original Al MT","Original Au KG",
+            "Adjusted Cu MT","Adjusted Fe MT","Adjusted Al MT","Adjusted Au KG",
+            "Metal Min ₹/kg Original","Metal Max ₹/kg Original",
+            "Metal Min ₹/kg Adjusted","Metal Max ₹/kg Adjusted",
+            "Cost at Metal Min Original","Cost at Metal Max Original",
+            "Cost at Metal Min Adjusted","Cost at Metal Max Adjusted",
+            "Category Min ₹/kg","Category Max ₹/kg",
+            "Cost at Category Min","Cost at Category Max"
+        ]
+
+        price_df = price_df[ordered_cols]
+
+        total_row = {c:"" for c in price_df.columns}
+        total_row["EEE Category"] = "TOTAL"
+
+        sum_cols = [
+            "Original Cu MT","Original Fe MT","Original Al MT","Original Au KG",
+            "Adjusted Cu MT","Adjusted Fe MT","Adjusted Al MT","Adjusted Au KG",
+            "Cost at Metal Min Original","Cost at Metal Max Original",
+            "Cost at Metal Min Adjusted","Cost at Metal Max Adjusted",
+            "Cost at Category Min","Cost at Category Max"
+        ]
+
+        for c in sum_cols:
+            total_row[c] = pd.to_numeric(price_df[c], errors="coerce").fillna(0).sum()
+
+        price_df = pd.concat([price_df,pd.DataFrame([total_row])],ignore_index=True)
 
         st.dataframe(price_df, use_container_width=True)
 
-        st.subheader("Totals")
-
-        st.write({
-            "Metal Min Total Original": round(price_df["Metal Min ₹ Original"].sum(),2),
-            "Metal Min Total Adjusted": round(price_df["Metal Min ₹ Adjusted"].sum(),2),
-            "Metal Max Total Original": round(price_df["Metal Max ₹ Original"].sum(),2),
-            "Metal Max Total Adjusted": round(price_df["Metal Max ₹ Adjusted"].sum(),2)
-        })
 
 
     
