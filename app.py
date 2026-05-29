@@ -185,6 +185,10 @@ if uploaded:
                 "Metal Min ₹ Original":round(metal_min_original,2),
                 "Metal Min ₹ Adjusted":round(metal_min_adjusted,2),
                 "Metal Max ₹ Original":round(metal_max_original,2),
+                "Category Min ₹/kg": cmin,
+                "Category Max ₹/kg": cmax,
+                "Category Min Total ₹": round(target_kg*cmin,2),
+                "Category Max Total ₹": round(target_kg*cmax,2),
                 "Metal Max ₹ Adjusted":round(metal_max_adjusted,2)
             })
 
@@ -202,22 +206,31 @@ if uploaded:
         })
 
 
+    
     with tab3:
 
-        st.subheader("Recycler Fungibility Engine")
+        st.subheader("Recycler Fungibility Engine V1.5")
 
-        proposal_rate = st.number_input(
-            "Brand Proposal Rate (₹/kg)",
-            min_value=0.0,
-            value=100.0,
-            key="proposal_rate"
+        proposal_df = out[["EEE Category","Target MT"]].copy()
+        proposal_df["Proposal Rate ₹/kg"] = 0.0
+
+        proposal_df = st.data_editor(
+            proposal_df,
+            use_container_width=True,
+            key="proposal_rates_v15"
         )
+
+        proposal_df["Brand Revenue ₹"] = (
+            proposal_df["Target MT"] * 1000 *
+            proposal_df["Proposal Rate ₹/kg"]
+        )
+
+        brand_revenue = proposal_df["Brand Revenue ₹"].sum()
 
         recycler_cost = st.number_input(
             "Recycler Processing Cost (₹/kg)",
             min_value=0.0,
-            value=25.0,
-            key="recycler_cost"
+            value=25.0
         )
 
         extraction = pd.read_excel(
@@ -225,19 +238,14 @@ if uploaded:
             sheet_name=2,
             header=1
         )
-
         extraction.columns = extraction.columns.str.strip()
 
         category_options = sorted(
-            extraction["Helper Column"]
-            .dropna()
-            .astype(str)
-            .unique()
-            .tolist()
+            extraction["Helper Column"].dropna().astype(str).unique().tolist()
         )
 
         selected_categories = st.multiselect(
-            "Select Recycling Categories",
+            "Recycler Categories",
             category_options
         )
 
@@ -245,56 +253,92 @@ if uploaded:
 
             split_df = pd.DataFrame({
                 "Category": selected_categories,
-                "Split %": [0.0] * len(selected_categories)
+                "Split %": [0.0]*len(selected_categories)
             })
 
-            split_df = st.data_editor(
-                split_df,
-                use_container_width=True,
-                num_rows="fixed"
-            )
+            split_df = st.data_editor(split_df, use_container_width=True)
 
-            total_split = float(split_df["Split %"].sum())
+            if round(float(split_df["Split %"].sum()),2) == 100:
 
-            st.write(f"Total Split = {round(total_split,2)}%")
+                total_cu = float(out["Cu MT"].sum())
+                total_fe = float(out["Fe MT"].sum())
+                total_al = float(out["Al MT"].sum())
+                total_au = float(out["Au KG"].sum())
 
-            if round(total_split,2) != 100:
+                wcu=wfe=wal=wau=0
 
-                st.error("Total Split must equal 100%")
+                for _,r in split_df.iterrows():
+                    wt=float(r["Split %"])/100
+                    m=extraction[
+                        extraction["Helper Column"].astype(str).str.strip()
+                        == str(r["Category"]).strip()
+                    ]
 
-            else:
+                    if len(m):
+                        wcu += wt*float(m.iloc[0]["Cu (%)"] or 0)
+                        wfe += wt*float(m.iloc[0]["Fe (%)"] or 0)
+                        wal += wt*float(m.iloc[0]["Al (%)"] or 0)
+                        wau += wt*float(m.iloc[0]["Au (%)"] or 0)
 
-                total_target_mt = float(out["Target MT"].sum())
+                req_cu = total_cu/wcu if wcu else 0
+                req_fe = total_fe/wfe if wfe else 0
+                req_al = total_al/wal if wal else 0
+                req_au = total_au/(wau*1000) if wau else 0
 
-                allocation = split_df.copy()
+                vals = {
+                    "Cu": req_cu,
+                    "Fe": req_fe,
+                    "Al": req_al,
+                    "Au": req_au
+                }
 
-                allocation["Allocated Qty MT"] = (
-                    allocation["Split %"] / 100 * total_target_mt
+                binding_metal = max(vals, key=vals.get)
+                binding_qty = vals[binding_metal]
+
+                generated_cu = binding_qty*wcu
+                generated_fe = binding_qty*wfe
+                generated_al = binding_qty*wal
+                generated_au = binding_qty*wau*1000
+
+                surplus_cu = max(0, generated_cu-total_cu)
+                surplus_fe = max(0, generated_fe-total_fe)
+                surplus_al = max(0, generated_al-total_al)
+                surplus_au = max(0, generated_au-total_au)
+
+                surplus_revenue = (
+                    surplus_cu*1000*562 +
+                    surplus_fe*1000*30 +
+                    surplus_al*1000*136 +
+                    surplus_au*772
                 )
 
-                st.subheader("Category Allocation")
+                recycler_cost_total = binding_qty*1000*recycler_cost
 
-                st.dataframe(
-                    allocation,
-                    use_container_width=True
-                )
-
-                brand_revenue = (
-                    total_target_mt * 1000 * proposal_rate
-                )
-
-                recycler_cost_total = (
-                    total_target_mt * 1000 * recycler_cost
-                )
-
-                st.subheader("Commercial Summary")
+                st.dataframe(proposal_df, use_container_width=True)
 
                 st.write({
-                    "Target MT": round(total_target_mt,2),
-                    "Brand Revenue": round(brand_revenue,2),
-                    "Recycler Cost": round(recycler_cost_total,2),
-                    "Gross Margin": round(
-                        brand_revenue - recycler_cost_total,
-                        2
+                    "Binding Metal": binding_metal,
+                    "Binding Quantity MT": round(binding_qty,2),
+                    "Weighted Cu %": round(wcu,6),
+                    "Weighted Fe %": round(wfe,6),
+                    "Weighted Al %": round(wal,6),
+                    "Weighted Au %": round(wau,6)
+                })
+
+                st.dataframe(pd.DataFrame({
+                    "Metal":["Cu","Fe","Al","Au"],
+                    "Target":[total_cu,total_fe,total_al,total_au],
+                    "Generated":[generated_cu,generated_fe,generated_al,generated_au],
+                    "Surplus":[surplus_cu,surplus_fe,surplus_al,surplus_au]
+                }))
+
+                st.write({
+                    "Brand Revenue ₹": round(brand_revenue,2),
+                    "Surplus Revenue ₹": round(surplus_revenue,2),
+                    "Recycler Cost ₹": round(recycler_cost_total,2),
+                    "Gross Margin ₹": round(
+                        brand_revenue + surplus_revenue - recycler_cost_total,2
                     )
                 })
+            else:
+                st.error("Split % must total 100")
