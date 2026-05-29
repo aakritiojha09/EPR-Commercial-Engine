@@ -209,7 +209,16 @@ if uploaded:
     
     with tab3:
 
-        st.subheader("Recycler Fungibility Engine V1.5")
+        st.subheader("Recycler Fungibility Engine V2.0")
+
+        optimization_mode = st.radio(
+            "Optimization Mode",
+            ["Manual","Maximize Margin","Minimize Loss"],
+            horizontal=True
+        )
+
+        st.info("V2.0: Optimization framework enabled. Suggested splits can be overridden manually.")
+
 
         proposal_df = out[["EEE Category","Target MT"]].copy()
         proposal_df["Proposal Rate ₹/kg"] = 0.0
