@@ -325,35 +325,26 @@ if uploaded:
                     "Weighted Au %": round(wau,6)
                 })
 
+                allocation_df = split_df.copy()
+
+                allocation_df["Required Collection MT"] = (
+                    binding_qty *
+                    allocation_df["Split %"] / 100
+                )
+
+                st.subheader("Recycler Collection Requirement")
+
+                st.dataframe(
+                    allocation_df,
+                    use_container_width=True
+                )
+
                 st.dataframe(pd.DataFrame({
                     "Metal":["Cu","Fe","Al","Au"],
                     "Target":[total_cu,total_fe,total_al,total_au],
                     "Generated":[generated_cu,generated_fe,generated_al,generated_au],
                     "Surplus":[surplus_cu,surplus_fe,surplus_al,surplus_au]
                 }))
-
-                
-                st.subheader("V1.6 Optimization Dashboard")
-
-                ranking_df = pd.DataFrame([
-                    ["Cu", req_cu],
-                    ["Fe", req_fe],
-                    ["Al", req_al],
-                    ["Au", req_au]
-                ], columns=["Metal","Required Qty MT"]).sort_values(
-                    "Required Qty MT", ascending=False
-                )
-
-                st.dataframe(ranking_df, use_container_width=True)
-
-                next_qty = ranking_df.iloc[1]["Required Qty MT"] if len(ranking_df) > 1 else 0
-                gap_pct = ((binding_qty-next_qty)/next_qty*100) if next_qty else 0
-
-                st.write({
-                    "Binding Metal": binding_metal,
-                    "Binding Advantage %": round(gap_pct,2)
-                })
-
 
                 st.write({
                     "Brand Revenue ₹": round(brand_revenue,2),
