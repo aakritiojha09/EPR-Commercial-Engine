@@ -227,6 +227,17 @@ if uploaded:
 
         brand_revenue = proposal_df["Brand Revenue ₹"].sum()
 
+        gold_credit_cost = st.number_input(
+            "Gold Credit Purchase Cost (₹/kg)",
+            min_value=0.0,
+            value=150000.0
+        )
+
+        recycler_cost = st.number_input(
+            "Recycler Processing Cost (₹/kg)",
+            min_value=0.0,
+            value=25.0
+        )
 
         extraction = pd.read_excel(
             "EPR_Master_Data.xlsx",
@@ -251,13 +262,7 @@ if uploaded:
                 "Split %": [0.0]*len(selected_categories)
             })
 
-            split_df["Recycler Cost ₹/kg"] = 25.0
-
-            split_df = st.data_editor(
-                split_df,
-                use_container_width=True,
-                key="recycler_mix_costs"
-            )
+            split_df = st.data_editor(split_df, use_container_width=True)
 
             if round(float(split_df["Split %"].sum()),2) == 100:
 
@@ -313,7 +318,7 @@ if uploaded:
                     surplus_au*772
                 )
 
-                # recycler_cost_total calculated from category-wise cost matrix
+                recycler_cost_total = binding_qty*1000*recycler_cost
 
                 st.dataframe(proposal_df, use_container_width=True)
 
@@ -333,14 +338,6 @@ if uploaded:
                     allocation_df["Split %"] / 100
                 )
 
-                allocation_df["Recycler Cost ₹"] = (
-                    allocation_df["Required Collection MT"]
-                    * 1000
-                    * allocation_df["Recycler Cost ₹/kg"]
-                )
-
-                recycler_cost_total = allocation_df["Recycler Cost ₹"].sum()
-
                 st.subheader("Recycler Collection Requirement")
 
                 st.dataframe(
@@ -348,19 +345,25 @@ if uploaded:
                     use_container_width=True
                 )
 
+                gold_deficit = max(0, total_au - generated_au)
+
                 st.dataframe(pd.DataFrame({
                     "Metal":["Cu","Fe","Al","Au"],
                     "Target":[total_cu,total_fe,total_al,total_au],
                     "Generated":[generated_cu,generated_fe,generated_al,generated_au],
+                    "Deficit":[0,0,0,gold_deficit],
                     "Surplus":[surplus_cu,surplus_fe,surplus_al,surplus_au]
                 }))
+
+                gold_purchase_cost = gold_deficit * gold_credit_cost
 
                 st.write({
                     "Brand Revenue ₹": round(brand_revenue,2),
                     "Surplus Revenue ₹": round(surplus_revenue,2),
                     "Recycler Cost ₹": round(recycler_cost_total,2),
+                    "Gold Credit Purchase Cost ₹": round(gold_purchase_cost,2),
                     "Gross Margin ₹": round(
-                        brand_revenue + surplus_revenue - recycler_cost_total,2
+                        brand_revenue + surplus_revenue - recycler_cost_total - gold_purchase_cost,2
                     )
                 })
             else:
