@@ -141,16 +141,24 @@ if uploaded:
 
             target_kg=float(r["Target MT"])*1000
 
-            if float(r["Au KG"]) > 0:
-                adj_cu = float(r["Cu MT"]) * (1 + shortfall)
-                adj_al = float(r["Al MT"]) * (1 + shortfall)
-                adj_au = float(r["Au KG"]) * gold_factor
-            else:
-                adj_cu = float(r["Cu MT"])
-                adj_al = float(r["Al MT"])
-                adj_au = float(r["Au KG"])
+            orig_cu = float(r["Cu MT"])
+            orig_fe = float(r["Fe MT"])
+            orig_al = float(r["Al MT"])
+            orig_au = float(r["Au KG"])
 
-            adj_fe = float(r["Fe MT"])
+            if gold_fulfilment_pct < 100 and orig_au > 0:
+
+                adj_cu = orig_cu * (1 + shortfall)
+                adj_al = orig_al * (1 + shortfall)
+                adj_fe = orig_fe
+                adj_au = orig_au * gold_factor
+
+            else:
+
+                adj_cu = orig_cu
+                adj_fe = orig_fe
+                adj_al = orig_al
+                adj_au = orig_au
 
             metal_min_original=(float(r["Cu MT"])*1000*562)+(float(r["Fe MT"])*1000*30)+(float(r["Al MT"])*1000*136)+(float(r["Au KG"])*1000*772)
             metal_max_original=(float(r["Cu MT"])*1000*1875)+(float(r["Fe MT"])*1000*101)+(float(r["Al MT"])*1000*456)+(float(r["Au KG"])*1000*2575)
@@ -166,7 +174,12 @@ if uploaded:
                 "Metal Max ₹/kg Original": round(metal_max_original/target_kg,2) if target_kg else 0,
                 "Metal Min ₹/kg Adjusted": round(metal_min_adjusted/target_kg,2) if target_kg else 0,
                 "Metal Max ₹/kg Adjusted": round(metal_max_adjusted/target_kg,2) if target_kg else 0,
+                "Original Cu MT":round(orig_cu,4),
+                "Original Fe MT":round(orig_fe,4),
+                "Original Al MT":round(orig_al,4),
+                "Original Au KG":round(orig_au,4),
                 "Adjusted Cu MT":round(adj_cu,4),
+                "Adjusted Fe MT":round(adj_fe,4),
                 "Adjusted Al MT":round(adj_al,4),
                 "Adjusted Au KG":round(adj_au,4),
                 "Metal Min ₹ Original":round(metal_min_original,2),
