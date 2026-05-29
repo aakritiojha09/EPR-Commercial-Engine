@@ -193,26 +193,11 @@ if uploaded:
 
         st.subheader("Recycler Fungibility Engine")
 
-        st.subheader("Category-wise Brand Proposal Rates")
-
-        proposal_df = out[["EEE Category","Target MT"]].copy()
-        proposal_df["Proposal Rate ₹/kg"] = 0.0
-
-        proposal_df = st.data_editor(
-            proposal_df,
-            use_container_width=True,
-            num_rows="fixed",
-            key="proposal_rates"
-        )
-
-        proposal_df["Brand Revenue ₹"] = (
-            proposal_df["Target MT"] * 1000 *
-            proposal_df["Proposal Rate ₹/kg"]
-        )
-
-        st.dataframe(
-            proposal_df,
-            use_container_width=True
+        proposal_rate = st.number_input(
+            "Brand Proposal Rate (₹/kg)",
+            min_value=0.0,
+            value=100.0,
+            key="proposal_rate"
         )
 
         recycler_cost = st.number_input(
@@ -281,7 +266,9 @@ if uploaded:
                     use_container_width=True
                 )
 
-                brand_revenue = proposal_df["Brand Revenue ₹"].sum()
+                brand_revenue = (
+                    total_target_mt * 1000 * proposal_rate
+                )
 
                 recycler_cost_total = (
                     total_target_mt * 1000 * recycler_cost
