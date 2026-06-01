@@ -351,10 +351,6 @@ if uploaded:
 
                 ranking=[]
 
-                total_cu = float(out["Cu MT"].sum())
-                total_fe = float(out["Fe MT"].sum())
-                total_al = float(out["Al MT"].sum())
-
                 for cat in selected_categories:
 
                     m = extraction[
@@ -364,60 +360,57 @@ if uploaded:
 
                     if len(m):
 
-                        cu_pct = pd.to_numeric(
-                            m.iloc[0]["Cu (%)"],
-                            errors="coerce"
-                        )
-
-                        fe_pct = pd.to_numeric(
-                            m.iloc[0]["Fe (%)"],
-                            errors="coerce"
-                        )
-
-                        al_pct = pd.to_numeric(
-                            m.iloc[0]["Al (%)"],
-                            errors="coerce"
-                        )
+                        cu_pct = pd.to_numeric(m.iloc[0]["Cu (%)"], errors="coerce")
+                        fe_pct = pd.to_numeric(m.iloc[0]["Fe (%)"], errors="coerce")
+                        al_pct = pd.to_numeric(m.iloc[0]["Al (%)"], errors="coerce")
+                        au_pct = pd.to_numeric(m.iloc[0]["Au (%)"], errors="coerce")
 
                         cu_pct = 0 if pd.isna(cu_pct) else cu_pct
                         fe_pct = 0 if pd.isna(fe_pct) else fe_pct
                         al_pct = 0 if pd.isna(al_pct) else al_pct
+                        au_pct = 0 if pd.isna(au_pct) else au_pct
 
-                        reqs=[]
+                        recycler_cost = float(
+                            split_df.loc[
+                                split_df["Recycler Category"] == cat,
+                                "Recycler Cost ₹/kg"
+                            ].iloc[0]
+                        )
 
-                        if cu_pct>0:
-                            reqs.append(total_cu/cu_pct)
+                        recovery_value = (
+                            (cu_pct * 562) +
+                            (fe_pct * 30) +
+                            (al_pct * 136) +
+                            (au_pct * gold_credit_cost)
+                        )
 
-                        if fe_pct>0:
-                            reqs.append(total_fe/fe_pct)
+                        if optimization_mode == "Maximize Margin":
+                            score = max(recovery_value - recycler_cost, 1)
+                        else:
+                            score = 1 / max(
+                                recycler_cost +
+                                ((1 - au_pct) * gold_credit_cost),
+                                1
+                            )
 
-                        if al_pct>0:
-                            reqs.append(total_al/al_pct)
-
-                        binding_qty = max(reqs) if reqs else 999999
-
-                        ranking.append([cat,binding_qty])
+                        ranking.append([cat, score])
 
                 rank_df = pd.DataFrame(
                     ranking,
-                    columns=["Recycler Category","Binding Qty"]
-                ).sort_values("Binding Qty")
+                    columns=["Recycler Category","Score"]
+                )
 
-                total_score = (
-                    1/rank_df["Binding Qty"]
-                ).sum()
+                total_score = rank_df["Score"].sum()
 
                 split_map={}
 
                 for _,rr in rank_df.iterrows():
                     split_map[rr["Recycler Category"]] = round(
-                        ((1/rr["Binding Qty"])/total_score)*100,
+                        (rr["Score"] / total_score) * 100,
                         2
                     )
 
-                split_df["Split %"] = split_df[
-                    "Recycler Category"
-                ].map(split_map)
+                split_df["Split %"] = split_df["Recycler Category"].map(split_map)
 
             split_df = st.data_editor(
                 split_df,
