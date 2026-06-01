@@ -259,12 +259,51 @@ if uploaded:
         )
 
         proposal_df = out[["EEE Category","Target MT"]].copy()
-        proposal_df["Proposal Rate ₹/kg"] = 0.0
+
+        auto_rates = []
+
+        for _, r in out.iterrows():
+
+            cat = r["EEE Category"]
+
+            prefix=''
+            for p in category_rates:
+                if cat.startswith(p):
+                    prefix=p
+                    break
+
+            cmin,_ = category_rates.get(prefix,(0,0))
+
+            target_kg=float(r["Target MT"])*1000
+
+            orig_cu=float(r["Cu MT"])
+            orig_fe=float(r["Fe MT"])
+            orig_al=float(r["Al MT"])
+            orig_au=float(r["Au KG"])
+
+            if gold_fulfilment_pct < 100 and orig_au > 0:
+                adj_cu = orig_cu * (1 + shortfall)
+                adj_al = orig_al * (1 + shortfall)
+                adj_fe = orig_fe
+                adj_au = orig_au * gold_factor
+            else:
+                adj_cu = orig_cu
+                adj_fe = orig_fe
+                adj_al = orig_al
+                adj_au = orig_au
+
+            metal_min_original = ((orig_cu*1000*562)+(orig_fe*1000*30)+(orig_al*1000*136)+(orig_au*1000*772))/target_kg if target_kg else 0
+            metal_min_adjusted = ((adj_cu*1000*562)+(adj_fe*1000*30)+(adj_al*1000*136)+(adj_au*1000*772))/target_kg if target_kg else 0
+
+            auto_rates.append(round(min(metal_min_original, metal_min_adjusted, cmin),2))
+
+        proposal_df["Auto Rate ₹/kg"] = auto_rates
+        proposal_df["Proposal Rate ₹/kg"] = auto_rates
 
         proposal_df = st.data_editor(
             proposal_df,
             use_container_width=True,
-            key="proposal_rates_v21"
+            key="proposal_rates_v23"
         )
 
         proposal_df["Revenue ₹"] = (
